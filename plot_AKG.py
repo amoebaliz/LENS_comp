@@ -1,13 +1,14 @@
 import numpy as np
 import netCDF4 as nc
-import matplotlib.pyplot as plt
-import matplotlib as mpl
-import matplotlib.gridspec as gridspec
-from mpl_toolkits.basemap import Basemap
-from matplotlib.collections import PolyCollection
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-import matplotlib.dates as pltd
 import datetime as dt
+import matplotlib as mpl
+import matplotlib.dates as pltd
+import matplotlib.pyplot as plt
+import matplotlib.colors as colors
+import matplotlib.gridspec as gridspec
+from matplotlib.collections import PolyCollection
+from mpl_toolkits.basemap import Basemap
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 def polygon_patch(mapid,axs):
     mapid.drawcoastlines(linewidth=0,zorder=map_order+6)
@@ -20,9 +21,7 @@ def polygon_patch(mapid,axs):
          facecolor=(1,1,1), closed=False)
     axs.add_collection(lc)
 
-import matplotlib.pyplot as plt
 import matplotlib.colors as colors
-import numpy as np
 
 def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
     new_cmap = colors.LinearSegmentedColormap.from_list(
@@ -33,7 +32,7 @@ def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
 def plot_map(ax):
     # PLOT: Map object
     m = Basemap(llcrnrlat=lat[0,0]-m_off,urcrnrlat=lat[-1,0]+m_off,\
-           llcrnrlon=lon[0,0]-m_off,urcrnrlon=lon[0,-1]+m_off, resolution='i')
+           llcrnrlon=lon[0,0]-m_off,urcrnrlon=lon[0,-1]+m_off, resolution='i',ax=ax)
 
     # PLOT: SST pcolormesh
     m.pcolormesh(pc_lon,pc_lat,pc_sst,vmin=3.0,vmax=5.5,cmap=new_cmap,zorder=map_order)
@@ -53,10 +52,78 @@ def plot_map(ax):
     # PLOT: Titles (top plots)
     if n<2:
        ax.set_title(titles[n], fontsize=14)
+    return m
+
+def plot_colorbar():
+    # PLOT: Colorbar
+    x0 = fig.axes[nplot-1].get_position().x0
+    x1 = fig.axes[nplot-1].get_position().x1
+    y0 = fig.axes[nplot-1].get_position().y0
+    y1 = fig.axes[nplot-1].get_position().y1
+
+    cb_x0 = fig.axes[nplot-1].get_position().x1 + \
+           (fig.axes[nplot-1].get_position().x0-fig.axes[0].get_position().x1)
+
+    cb_y0 = fig.axes[nplot-1].get_position().y0
+
+    cb_yn = fig.axes[0].get_position().y1-fig.axes[nplot-1].get_position().y0
+
+    cax = fig.add_axes([cb_x0, cb_y0, 0.02, cb_yn])
+
+    plt.colorbar(ax.collections[0],cax=cax,extend='both')
+    cax.get_yaxis().labelpad = 25
+    cax.set_ylabel(r'$\Delta$ SST ($\!^\circ\!$C)', size=14,rotation=270)
+    cax.tick_params(labelsize=11)
+
+def plot_timeline():
+    # PLOT: Timeline
+    tm_x0 = fig.axes[0].get_position().x0
+
+    tm_xn = fig.axes[nplot-1].get_position().x1 - \
+            fig.axes[0].get_position().x0
+
+    ax2 = plt.axes([tm_x0,.1,tm_xn,.05], facecolor=(1,1,1,0))
+    #ax2.set_title('Differential (Future-Historical) Timeframes',fontsize=14)
+    ax2.set_title('Timeperiods Averaged for Future-Historical Differencing',fontsize=12)
+
+    tim_lin = []
+    for ny in np.arange(1970,2111,10):
+        tim_lin.append(pltd.date2num(dt.datetime(ny,1,1)))
+
+    # PLOT: Full timeline
+    ax2.plot([tim_lin[0],tim_lin[-1]],[0,0],'k')
+
+    # PLOT: 30-yr timelines
+    ax2.plot([pltd.date2num(dt.datetime(1971,1,1)),\
+             pltd.date2num(dt.datetime(2000,12,31))],\
+             [.2,.2],'-b',linewidth=4)
+
+    ax2.plot([pltd.date2num(dt.datetime(2071,1,1)),\
+              pltd.date2num(dt.datetime(2100,12,31))],\
+          [.2,.2],'-b',linewidth=4)
+
+    # PLOT: 10-yr timelines
+    ax2.plot([pltd.date2num(dt.datetime(1981,1,1)),\
+              pltd.date2num(dt.datetime(1990,12,31))],\
+              [.4,.4],'-g',linewidth=4)
+
+    ax2.plot([pltd.date2num(dt.datetime(2081,1,1)),\
+              pltd.date2num(dt.datetime(2090,12,31))],\
+              [.4,.4],'-g',linewidth=4)
+
+    ax2.set_xticks(tim_lin)
+    ax2.tick_params(axis="x", labelsize=11, labelrotation=40)
+    ax2.xaxis_date()
+    ax2.set_ylim(0,.7)
+    ax2.set_xlim(tim_lin[0],tim_lin[-1])
+    ax2.get_yaxis().set_visible(False)
+    ax2.spines['top'].set_visible(False)
+    ax2.spines['right'].set_visible(False)
+    ax2.spines['bottom'].set_visible(False)
+    ax2.spines['left'].set_visible(False)
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
 # FIGURE
-
 m_off = 0.1
 map_order=1
 ids = ['a','b','c','d','e','f']
@@ -104,69 +171,13 @@ for n in range(nplot):
 
     # PLOT: Maps
     ax = plt.subplot(gs[n])
-    plot_map(ax)
+    m = plot_map(ax)
 
 # ADJUST: plot positions for colorbar and timeline
 plt.subplots_adjust(right=.88, bottom=0.26)
-fig.canvas.draw_idle()
-
-# PLOT: Colorbar
-cb_x0 = fig.axes[nplot-1].get_position().x1 + \
-       (fig.axes[nplot-1].get_position().x0-fig.axes[0].get_position().x1)
-cb_y0 = fig.axes[nplot-1].get_position().y0
-cb_yn = fig.axes[0].get_position().y1-fig.axes[nplot-1].get_position().y0
-cax = fig.add_axes([cb_x0, cb_y0, 0.02, cb_yn])
-
-plt.colorbar(ax.collections[0],cax=cax,extend='both')  
-cax.get_yaxis().labelpad = 25
-cax.set_ylabel(r'$\Delta$ SST ($\!^\circ\!$C)', size=14,rotation=270)
-cax.tick_params(labelsize=11) 
-
-# PLOT: Timeline
-tm_x0 = fig.axes[0].get_position().x0
-
-tm_xn = fig.axes[nplot-1].get_position().x1 - \
-        fig.axes[0].get_position().x0
-
-ax2 = plt.axes([tm_x0,.1,tm_xn,.05], facecolor=(1,1,1,0)) 
-#ax2.set_title('Differential (Future-Historical) Timeframes',fontsize=14)
-ax2.set_title('Timeperiods Averaged for Differencing (Future-Historical)',fontsize=12)
-
-tim_lin = []
-for ny in np.arange(1970,2111,10):
-    tim_lin.append(pltd.date2num(dt.datetime(ny,1,1)))
-
-# PLOT: Full timeline
-ax2.plot([tim_lin[0],tim_lin[-1]],[0,0],'k')
-
-# PLOT: 30-yr timelines
-ax2.plot([pltd.date2num(dt.datetime(1971,1,1)),\
-          pltd.date2num(dt.datetime(2000,12,31))],\
-          [.2,.2],'-b',linewidth=4)
-
-ax2.plot([pltd.date2num(dt.datetime(2071,1,1)),\
-          pltd.date2num(dt.datetime(2100,12,31))],\
-          [.2,.2],'-b',linewidth=4)
-
-# PLOT: 10-yr timelines
-ax2.plot([pltd.date2num(dt.datetime(1981,1,1)),\
-          pltd.date2num(dt.datetime(1990,12,31))],\
-          [.4,.4],'-g',linewidth=4)
-
-ax2.plot([pltd.date2num(dt.datetime(2081,1,1)),\
-          pltd.date2num(dt.datetime(2090,12,31))],\
-          [.4,.4],'-g',linewidth=4)
-
-ax2.set_xticks(tim_lin)
-ax2.tick_params(axis="x", labelsize=11, labelrotation=40)
-ax2.xaxis_date()
-ax2.set_ylim(0,.7)
-ax2.set_xlim(tim_lin[0],tim_lin[-1])
-ax2.get_yaxis().set_visible(False)
-ax2.spines['top'].set_visible(False)
-ax2.spines['right'].set_visible(False)
-ax2.spines['bottom'].set_visible(False)
-ax2.spines['left'].set_visible(False)
+fig.canvas.draw()
+plot_colorbar()
+plot_timeline()
 
 # SAVE: Figure
 plt.savefig('GoAK_aliasing_example')
